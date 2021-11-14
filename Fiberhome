@@ -1,0 +1,69 @@
+# 1、在“WAP_DETAIL”表中获取30条协议为“FTP、SSH、WebService”的记录，并且每个协议都是10条；返回字段“用户手机号、协议、开始时间”并保证字段返回顺序，返回结果按照协议升序、开始时间降序。
+
+select msisdn, protocol, starttime
+  from (select msisdn, protocol, starttime
+          from wap_detail t
+         where protocol = 'FTP'
+           and rownum <= 10
+        union all
+        select msisdn, protocol, starttime
+          from wap_detail t
+         where protocol = 'SSH'
+           and rownum <= 10
+        union all
+        select msisdn, protocol, starttime
+          from wap_detail t
+         where protocol = 'WebService'
+           and rownum <= 10)
+ order by protocol asc, starttime desc
+
+# 2、在“WAP_DETAIL”表中获取开始时间取最大的10条记录。
+返回字段“用户手机号、用户姓名、开始时间、结束时间、HTTP状态码、上行流量”并保证字段返回顺序；
+返回结果条件：开始时间大于等于结束时间，上行流量大于等于8000，HTTP状态码等于200。
+
+select msisdn, user_name, starttime, stoptime, code_id, flow_up
+  from (select msisdn, user_name, starttime, stoptime, code_id, flow_up
+          from wap_detail
+         where starttime >= stoptime
+           and flow_up >= 8000
+           and code_id = 200
+         order by starttime desc)
+ where rownum <= 10
+
+
+
+# 3、在“WAP_DETAIL”表中按照HTTP状态码分组统计协议为“HTTP、HTTPS、SSH”的上行流量、下行流量和总流量，并且按照HTTP状态码升序。
+
+select code_id, 
+       sum(flow_up) as flow_up, 
+       sum(flow_down) as flow_down, 
+       sum(flow_up+flow_down) as flow_total
+  from wap_detail
+ where protocol in ('HTTP','HTTPS','SSH')
+ group by code_id
+ order by code_id
+
+# 4、在“WAP_DETAIL”表中按照用户编码前2位分组统计URL地址为https开头并且含有neteasy的上行流量、下行流量和总流量，并且按照用户编码前2位升序。
+
+select substr(user_id,1,2) as user_id, 
+       sum(flow_up) as flow_up, 
+       sum(flow_down) as flow_down, 
+       sum(flow_up+flow_down) as flow_total
+  from wap_detail
+ where (url like 'https%neteasy%')
+ group by substr(user_id,1,2)
+ order by substr(user_id,1,2)
+
+
+# 5、在“WAP_DETAIL”表中获取开始时间小于结束时间，并且开始时间、结束时间在2019-01-10 00:00:00 ~ 2019-01-12 23:59:59之间的记录；返回字段为：用户编码、用户姓名、URL地址、HTTP状态码、状态码描述、开始时间、结束时间；其中状态码描述需要通过“WAP_DETAIL”表关联“HTTP_CODE”表获取，状态码描述关联不到的转换成“未知”，开始时间、结束时间使用to_char()函数转换成“yyyy-mm-dd hh24:mi:ss”格式。
+
+select user_id,user_name,url,a.code_id,nvl(b.code_desc,'未知') as code_desc,
+       to_char(starttime,'yyyy-mm-dd hh24:mi:ss') starttime,
+       to_char(stoptime,'yyyy-mm-dd hh24:mi:ss') stoptime
+  from wap_detail a left join http_code b
+    on a.code_id = b.code_id
+ where starttime between to_date('2019-01-10 00:00:00','yyyy-mm-dd hh24:mi:ss') 
+                     and to_date('2019-01-12 23:59:59','yyyy-mm-dd hh24:mi:ss') 
+   and stoptime between to_date('2019-01-10 00:00:00','yyyy-mm-dd hh24:mi:ss') 
+                    and to_date('2019-01-12 23:59:59','yyyy-mm-dd hh24:mi:ss')
+   and starttime <= stoptime
